@@ -1,0 +1,17 @@
+{
+  "name": "aidp-extension",
+  "version": "1.0.0",
+  "scripts": {
+    "build": "node build.mjs",
+    "watch": "node build.mjs --watch",
+    "dev": "npm run build && echo 'Load the dist/ folder in chrome://extensions (Developer Mode)'"
+  },
+  "devDependencies": {
+    "typescript": "^5.0.0",
+    "@types/chrome": "^0.0.260",
+    "esbuild": "^0.20.0"
+  },
+  "dependencies": {
+    "@supabase/supabase-js": "^2.39.0"
+  }
+}
