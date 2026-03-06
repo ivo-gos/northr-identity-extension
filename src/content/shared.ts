@@ -1,4 +1,4 @@
-// Northr Identity — Content Script Shared Module (Compact UI)
+// Northr Identity — Content Script (Narrative Block Profiles v2)
 
 const LOG_PREFIX = '[Northr]'
 const SUPABASE_URL = 'https://ogymhddaeetmxmbtbxne.supabase.co'
@@ -8,53 +8,43 @@ export function log(...args: any[]) { console.log(LOG_PREFIX, ...args) }
 
 // ── Types ──
 
-interface SituationProfile {
-  id: string; name: string; emoji: string; description: string
-  sort_order: number; is_default?: boolean
-  categories?: string[]; fact_types?: string[]; max_facts?: number
-}
-
-interface IdentityFact {
-  id?: string; content: string; category: string; importance?: number
-  fact_type?: string; context_tag?: string; status?: string; validated?: boolean
+interface IdentityBlock {
+  profile_key: string
+  label: string
+  emoji: string
+  content: string
+  sort_order: number
+  last_edited_at?: string
 }
 
 type Platform = 'chatgpt' | 'claude' | 'gemini'
 
-// ── Context tag labels ──
+// ── SVG Icons (outlined/stroke style) ──
 
-const TAG_GROUP_LABELS: Record<string, string> = {
-  'identity': 'Who I Am', 'business_goal': 'Business Goals',
-  'personal_goal': 'Personal Goals', 'family_goal': 'Family Goals',
-  'tool': 'Tools I Use', 'communication_style': 'How I Communicate',
-  'ai_preference': 'How I Want AI to Respond', 'work_relationship': 'My Team',
-  'personal_relationship': 'My People', 'family': 'My Family',
-  'value': 'What I Value', 'decision_style': 'How I Make Decisions',
-  'constraint': 'Current Constraints', 'creative': 'Creative Preferences',
-  'personal': 'About Me', 'professional': 'Professional',
-  'goals': 'Goals', 'relationships': 'Relationships', 'preferences': 'Preferences',
+const ICONS: Record<string, string> = {
+  briefcase: '<svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><rect x="2" y="7" width="20" height="14" rx="2" ry="2"/><path d="M16 7V5a2 2 0 0 0-2-2h-4a2 2 0 0 0-2 2v2"/></svg>',
+  heart: '<svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M20.84 4.61a5.5 5.5 0 0 0-7.78 0L12 5.67l-1.06-1.06a5.5 5.5 0 0 0-7.78 7.78l1.06 1.06L12 21.23l7.78-7.78 1.06-1.06a5.5 5.5 0 0 0 0-7.78z"/></svg>',
+  'pen-tool': '<svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M12 19l7-7 3 3-7 7-3-3z"/><path d="M18 13l-1.5-7.5L2 2l3.5 14.5L13 18l5-5z"/><path d="M2 2l7.586 7.586"/><circle cx="11" cy="11" r="2"/></svg>',
+  globe: '<svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><line x1="2" y1="12" x2="22" y2="12"/><path d="M12 2a15.3 15.3 0 0 1 4 10 15.3 15.3 0 0 1-4 10 15.3 15.3 0 0 1-4-10 15.3 15.3 0 0 1 4-10z"/></svg>'
+}
+
+// ── Default blocks ──
+
+function getDefaultBlocks(): IdentityBlock[] {
+  return [
+    { profile_key: 'business', label: 'Business', emoji: 'briefcase', content: '', sort_order: 1 },
+    { profile_key: 'personal', label: 'Personal', emoji: 'heart', content: '', sort_order: 2 },
+    { profile_key: 'voice', label: 'My Voice', emoji: 'pen-tool', content: '', sort_order: 3 },
+    { profile_key: 'full', label: 'Full Me', emoji: 'globe', content: '', sort_order: 4 },
+  ]
 }
 
 // ── Platform themes ──
 
 const THEMES: Record<Platform, Record<string, string>> = {
-  chatgpt: { bg:'#2f2f2f',text:'#ececec',accent:'#10a37f',hover:'#3a3a3a',border:'#444444',separator:'#444444',muted:'#888888',dot:'#ffffff',dotBg:'#2f2f2f',warn:'#f59e0b' },
-  claude: { bg:'#2b2a27',text:'#e8e4dd',accent:'#d97706',hover:'#3a3937',border:'#444240',separator:'#444240',muted:'#9a958e',dot:'#ffffff',dotBg:'#2b2a27',warn:'#f59e0b' },
-  gemini: { bg:'#1e1f20',text:'#e3e3e3',accent:'#8ab4f8',hover:'#2c2d2e',border:'#3c4043',separator:'#3c4043',muted:'#9aa0a6',dot:'#ffffff',dotBg:'#1e1f20',warn:'#f59e0b' }
-}
-
-// ── Default profiles ──
-
-function getDefaultProfiles(): SituationProfile[] {
-  return [
-    { id:'_advice', name:'Getting advice', emoji:'\uD83D\uDCA1', description:'Professional + goals + preferences', sort_order:1, categories:['professional','goals','preferences'], fact_types:['identity','business_goal','value','decision_style','ai_preference'], max_facts:20 },
-    { id:'_delegate', name:'Delegating work', emoji:'\uD83D\uDCCB', description:'Professional + preferences + goals', sort_order:2, categories:['professional','preferences','goals'], fact_types:['identity','communication_style','tool','work_relationship','business_goal'], max_facts:22 },
-    { id:'_brainstorm', name:'Brainstorming', emoji:'\uD83E\uDDE0', description:'Professional + goals', sort_order:3, categories:['professional','goals'], fact_types:['identity','business_goal','creative','value'], max_facts:15 },
-    { id:'_personal', name:'Personal help', emoji:'\uD83D\uDCAC', description:'Personal + relationships', sort_order:4, categories:['personal','relationships'], fact_types:['identity','family','personal_relationship','personal_goal','family_goal'], max_facts:20 },
-    { id:'_writing', name:'Writing as me', emoji:'\u270D\uFE0F', description:'Personal + professional + preferences', sort_order:5, categories:['personal','professional','preferences'], fact_types:['identity','communication_style','ai_preference','creative','value'], max_facts:15 },
-    { id:'_decision', name:'Making a decision', emoji:'\uD83D\uDCCA', description:'Professional + goals + personal', sort_order:6, categories:['professional','goals','personal'], fact_types:['identity','business_goal','value','decision_style','constraint'], max_facts:18 },
-    { id:'_full', name:'Full context', emoji:'\uD83C\uDF10', description:'All identity facts', sort_order:99, is_default:false, categories:['all'], max_facts:50 }
-  ]
+  chatgpt: { bg:'#2f2f2f',text:'#ececec',accent:'#10a37f',hover:'#3a3a3a',border:'#444444',muted:'#888888',dot:'#ffffff',dotBg:'#2f2f2f',cardBg:'#363636',selected:'#10a37f' },
+  claude: { bg:'#2b2a27',text:'#e8e4dd',accent:'#d97706',hover:'#3a3937',border:'#444240',muted:'#9a958e',dot:'#ffffff',dotBg:'#2b2a27',cardBg:'#343330',selected:'#d97706' },
+  gemini: { bg:'#1e1f20',text:'#e3e3e3',accent:'#8ab4f8',hover:'#2c2d2e',border:'#3c4043',muted:'#9aa0a6',dot:'#ffffff',dotBg:'#1e1f20',cardBg:'#28292a',selected:'#8ab4f8' }
 }
 
 // ── Supabase helpers ──
@@ -83,67 +73,41 @@ async function supaFetch(path: string, options: RequestInit = {}): Promise<any> 
   return resp.json()
 }
 
-// ── Local-first data access ──
+// ── Data access ──
 
 async function getLocal(keys: string[]): Promise<Record<string, any>> {
   return new Promise((r) => chrome.storage.local.get(keys, r))
 }
 
-async function getProfiles(): Promise<SituationProfile[]> {
-  const { cached_profiles } = await getLocal(['cached_profiles'])
-  return (cached_profiles && cached_profiles.length > 0) ? cached_profiles : getDefaultProfiles()
+async function getBlocks(): Promise<IdentityBlock[]> {
+  const { identity_blocks } = await getLocal(['identity_blocks'])
+
+  // Always try Supabase first if we have an auth token
+  try {
+    const token = await getAuthToken()
+    if (token) {
+      const blocks = await supaFetch('identity_blocks?order=sort_order&select=profile_key,label,emoji,content,sort_order,last_edited_at')
+      if (blocks && blocks.length > 0) {
+        await chrome.storage.local.set({ identity_blocks: blocks, last_synced_at: Date.now() })
+        return blocks
+      }
+    }
+  } catch (e) { log('Supabase fetch failed, using local:', e) }
+
+  // Fallback: use locally cached blocks
+  if (identity_blocks && identity_blocks.length > 0) return identity_blocks
+  return getDefaultBlocks()
 }
 
-async function getFactsForProfile(profileId: string): Promise<IdentityFact[]> {
-  const { sync_mode, facts_by_profile } = await getLocal(['sync_mode', 'facts_by_profile'])
-  if (sync_mode === 'cloud' && !profileId.startsWith('_')) {
-    try {
-      const facts = await supaFetch('rpc/get_profile_facts', { method: 'POST', body: JSON.stringify({ profile_id: profileId }) })
-      if (facts && facts.length > 0) return facts
-    } catch (e) { log('Cloud fetch failed:', e) }
-  }
-  if (facts_by_profile && facts_by_profile[profileId]) return facts_by_profile[profileId]
-  const { identity_facts } = await getLocal(['identity_facts'])
-  if (!identity_facts || !identity_facts.length) return []
-  const profiles = await getProfiles()
-  const profile = profiles.find((p: SituationProfile) => p.id === profileId)
-  if (!profile) return identity_facts
-  return filterFactsForProfile(identity_facts, profile)
+function wordCount(text: string): number {
+  if (!text || !text.trim()) return 0
+  return text.trim().split(/\s+/).length
 }
 
-function filterFactsForProfile(allFacts: IdentityFact[], profile: SituationProfile): IdentityFact[] {
-  const categories = profile.categories || []
-  const factTypes = profile.fact_types || []
-  if (categories.includes('all')) {
-    return allFacts.filter(f => f.status !== 'superseded' && f.status !== 'rejected')
-      .sort((a, b) => (b.importance || 5) - (a.importance || 5)).slice(0, profile.max_facts || 50)
-  }
-  return allFacts.filter(fact => {
-    if (fact.status === 'superseded' || fact.status === 'rejected') return false
-    return categories.includes(fact.category)
-      || (fact.context_tag ? (categories.includes(fact.context_tag) || factTypes.includes(fact.context_tag)) : false)
-      || (fact.fact_type ? factTypes.includes(fact.fact_type) : false)
-  }).sort((a, b) => (b.importance || 5) - (a.importance || 5)).slice(0, profile.max_facts || 20)
-}
+// ── Injection format ──
 
-// ── Format identity block ──
-
-function formatIdentityBlock(profileName: string, facts: IdentityFact[]): string {
-  const grouped: Record<string, string[]> = {}
-  for (const fact of facts) {
-    const tag = fact.context_tag || fact.category
-    const label = TAG_GROUP_LABELS[tag] || tag.charAt(0).toUpperCase() + tag.slice(1)
-    if (!grouped[label]) grouped[label] = []
-    grouped[label].push(fact.content)
-  }
-  let block = '--- About Me (' + profileName + ') ---\n\n'
-  for (const [label, items] of Object.entries(grouped)) {
-    block += label + ':\n'
-    for (const item of items) { block += '\u2022 ' + item + '\n' }
-    block += '\n'
-  }
-  block += '--- End ---\n\n'
-  return block
+function formatBlock(block: IdentityBlock): string {
+  return '[About me - ' + block.label + ']\n' + block.content + '\n[End]\n\n'
 }
 
 // ── Editor helpers ──
@@ -170,7 +134,7 @@ function setEditorContent(el: HTMLElement, text: string) {
   }
 }
 
-// ── Toast notifications ──
+// ── Toast ──
 
 function showToast(msg: string, theme: Record<string, string>) {
   const e = document.getElementById('northr-toast'); if (e) e.remove()
@@ -181,17 +145,18 @@ function showToast(msg: string, theme: Record<string, string>) {
   setTimeout(() => { t.style.opacity = '0'; setTimeout(() => t.remove(), 300) }, 3000)
 }
 
-// ── Compact UI: Dot indicator + Bottom-center menu ──
+// ── UI: Dot indicator + Bottom-center 2x2 grid menu ──
 
 let menuCreated = false, menuOpen = false
 let menuEl: HTMLElement | null = null, dotEl: HTMLElement | null = null
+let selectedKey: string | null = null
 
 export function createNorthrProfileMenu(findEditorFn: () => HTMLElement | null, platform: Platform) {
   if (menuCreated) return
   menuCreated = true
   const theme = THEMES[platform]
 
-  // ── Subtle dot indicator (bottom-right corner) ──
+  // ── Dot indicator ──
   const dot = document.createElement('div'); dot.id = 'northr-dot'
   dot.style.cssText = 'position:fixed;bottom:24px;right:24px;width:28px;height:28px;border-radius:50%;background:'+theme.dotBg+';border:2px solid '+theme.dot+'30;cursor:pointer;z-index:2147483646;display:flex;align-items:center;justify-content:center;transition:all 0.2s;opacity:0.5;box-shadow:0 1px 6px rgba(0,0,0,0.2);'
   dot.innerHTML = '<svg width="12" height="12" viewBox="0 0 12 12" fill="none"><text x="1" y="10" font-size="11" font-weight="700" font-family="system-ui" fill="'+theme.dot+'">N</text></svg>'
@@ -201,34 +166,34 @@ export function createNorthrProfileMenu(findEditorFn: () => HTMLElement | null, 
   dot.addEventListener('click', (e) => { e.stopPropagation(); toggleMenu() })
   document.body.appendChild(dot); dotEl = dot
 
-  // ── Bottom-center compact menu bar ──
+  // ── Menu container ──
   const menu = document.createElement('div'); menu.id = 'northr-menu'
-  menu.style.cssText = 'position:fixed;bottom:24px;left:50%;transform:translateX(-50%) translateY(12px);background:'+theme.bg+';color:'+theme.text+';border:1px solid '+theme.border+';border-radius:14px;padding:6px;font-size:13px;font-family:-apple-system,BlinkMacSystemFont,Inter,sans-serif;z-index:2147483647;box-shadow:0 8px 40px rgba(0,0,0,0.35);display:none;flex-direction:column;gap:1px;max-height:380px;overflow-y:auto;transition:opacity 0.15s,transform 0.15s;opacity:0;min-width:260px;max-width:300px;'
+  menu.style.cssText = 'position:fixed;bottom:24px;left:50%;transform:translateX(-50%) translateY(12px);background:'+theme.bg+';color:'+theme.text+';border:1px solid '+theme.border+';border-radius:16px;padding:12px;font-size:13px;font-family:-apple-system,BlinkMacSystemFont,Inter,sans-serif;z-index:2147483647;box-shadow:0 8px 40px rgba(0,0,0,0.4);display:none;flex-direction:column;gap:8px;transition:opacity 0.15s,transform 0.15s;opacity:0;width:300px;'
   menu.addEventListener('click', (e) => e.stopPropagation())
   document.body.appendChild(menu); menuEl = menu
 
   loadMenu(platform, findEditorFn)
 
-  // ── Close on outside click ──
   document.addEventListener('click', () => { if (menuOpen) closeMenu() })
-
-  // ── Keyboard shortcuts ──
   document.addEventListener('keydown', (e: KeyboardEvent) => {
     if ((e.metaKey || e.ctrlKey) && e.key === 'i') { e.preventDefault(); toggleMenu(); return }
     if (e.key === 'Escape' && menuOpen) { closeMenu(); return }
-    if (menuOpen && e.key >= '1' && e.key <= '9') {
-      const rows = menuEl?.querySelectorAll('[data-profile-idx]')
-      if (rows && rows[parseInt(e.key)-1]) (rows[parseInt(e.key)-1] as HTMLElement).click()
+    if (menuOpen && e.key >= '1' && e.key <= '4') {
+      const cards = menuEl?.querySelectorAll('[data-block-key]') as NodeListOf<HTMLElement>
+      if (cards && cards[parseInt(e.key)-1]) cards[parseInt(e.key)-1].click()
+    }
+    if (menuOpen && e.key === 'Enter' && selectedKey) {
+      const injectBtn = document.getElementById('northr-inject-btn')
+      if (injectBtn) injectBtn.click()
     }
   })
 
-  // ── SPA navigation reset ──
   let lastUrl = window.location.href
   new MutationObserver(() => {
     if (window.location.href !== lastUrl) { lastUrl = window.location.href; resetDot(platform) }
   }).observe(document.body, { childList: true, subtree: true })
 
-  log('Northr compact menu ready (\u2318I to open)')
+  log('Northr v2 ready (\u2318I to open)')
 }
 
 function toggleMenu() { if (menuOpen) closeMenu(); else openMenu() }
@@ -237,17 +202,13 @@ function openMenu() {
   if (!menuEl || !dotEl) return
   menuEl.style.display = 'flex'
   dotEl.style.opacity = '1'
-  requestAnimationFrame(() => {
-    menuEl!.style.opacity = '1'
-    menuEl!.style.transform = 'translateX(-50%) translateY(0)'
-  })
+  requestAnimationFrame(() => { menuEl!.style.opacity = '1'; menuEl!.style.transform = 'translateX(-50%) translateY(0)' })
   menuOpen = true
 }
 
 function closeMenu() {
   if (!menuEl || !dotEl) return
-  menuEl.style.opacity = '0'
-  menuEl.style.transform = 'translateX(-50%) translateY(12px)'
+  menuEl.style.opacity = '0'; menuEl.style.transform = 'translateX(-50%) translateY(12px)'
   dotEl.style.opacity = '0.5'
   setTimeout(() => { menuEl!.style.display = 'none' }, 150)
   menuOpen = false
@@ -255,100 +216,108 @@ function closeMenu() {
 
 function resetDot(platform: Platform) {
   if (!dotEl) return
-  const theme = THEMES[platform]
-  dotEl.style.border = '2px solid ' + theme.dot + '30'
+  dotEl.style.border = '2px solid ' + THEMES[platform].dot + '30'
   dotEl.style.opacity = '0.5'
-  dotEl.innerHTML = '<svg width="12" height="12" viewBox="0 0 12 12" fill="none"><text x="1" y="10" font-size="11" font-weight="700" font-family="system-ui" fill="'+theme.dot+'">N</text></svg>'
-}
-
-function showSuccess(platform: Platform, emoji: string, profileName: string, factCount: number) {
-  if (!dotEl) return
-  // Briefly pulse the dot green
-  dotEl.style.border = '2px solid #10b981'
-  dotEl.style.opacity = '1'
-  dotEl.innerHTML = '<svg width="12" height="12" viewBox="0 0 12 12" fill="none"><text x="1" y="10" font-size="11" font-weight="700" font-family="system-ui" fill="#10b981">\u2713</text></svg>'
-  showToast(emoji + ' ' + profileName + ' \u2014 ' + factCount + ' facts injected', THEMES[platform])
-  setTimeout(() => resetDot(platform), 4000)
+  dotEl.innerHTML = '<svg width="12" height="12" viewBox="0 0 12 12" fill="none"><text x="1" y="10" font-size="11" font-weight="700" font-family="system-ui" fill="'+THEMES[platform].dot+'">N</text></svg>'
 }
 
 async function loadMenu(platform: Platform, findEditorFn: () => HTMLElement | null) {
   if (!menuEl) return
   const theme = THEMES[platform]
+  selectedKey = null
+
+  const blocks = await getBlocks()
 
   // Header
   const isMac = navigator.platform.toUpperCase().indexOf('MAC') >= 0
-  menuEl.innerHTML = '<div style="display:flex;justify-content:space-between;align-items:center;padding:6px 10px 4px;"><span style="font-weight:600;font-size:12px;color:'+theme.muted+';">Northr Identity</span><span style="font-size:10px;color:'+theme.muted+'60;">'+(isMac?'\u2318':'Ctrl+')+'I</span></div>'
+  const header = document.createElement('div')
+  header.style.cssText = 'display:flex;justify-content:space-between;align-items:center;padding:0 2px 4px;'
+  header.innerHTML = '<span style="font-weight:600;font-size:12px;color:'+theme.muted+';">Northr Identity</span><span style="font-size:10px;color:'+theme.muted+'50;">'+(isMac?'\u2318':'Ctrl+')+'I</span>'
+  menuEl.appendChild(header)
 
-  const profiles = await getProfiles()
-  const st = await getLocal(['recent_profile_ids','identity_facts','facts_by_profile'])
-  const recentIds: string[] = st.recent_profile_ids || []
-  const allFacts: IdentityFact[] = st.identity_facts || []
-  const fbp: Record<string,IdentityFact[]> = st.facts_by_profile || {}
+  // 2x2 grid
+  const grid = document.createElement('div')
+  grid.style.cssText = 'display:grid;grid-template-columns:1fr 1fr;gap:6px;'
 
-  const counts: Record<string,number> = {}
-  for (const p of profiles) {
-    counts[p.id] = fbp[p.id] ? fbp[p.id].length : (allFacts.length ? filterFactsForProfile(allFacts, p).length : 0)
-  }
+  const previewEl = document.createElement('div')
+  previewEl.id = 'northr-preview'
+  previewEl.style.cssText = 'font-size:11px;color:'+theme.muted+';padding:4px 2px;min-height:28px;line-height:1.4;display:none;'
 
-  const sorted = [...profiles].sort((a,b) => {
-    const aR=recentIds.indexOf(a.id), bR=recentIds.indexOf(b.id)
-    if (aR>=0 && bR>=0) return aR-bR; if (aR>=0) return -1; if (bR>=0) return 1
-    return a.sort_order - b.sort_order
-  })
-  const recentCount = sorted.filter(p => recentIds.includes(p.id)).length
+  blocks.forEach((block, idx) => {
+    const wc = wordCount(block.content)
+    const isEmpty = wc === 0
+    const card = document.createElement('div')
+    card.dataset.blockKey = block.profile_key
+    card.style.cssText = 'display:flex;flex-direction:column;align-items:center;gap:4px;padding:12px 8px;border-radius:10px;background:'+theme.cardBg+';border:2px solid transparent;cursor:pointer;transition:all 0.15s;'+(isEmpty?'opacity:0.4;':'')
+    card.innerHTML = '<div style="color:'+theme.text+';opacity:0.7;">'+(ICONS[block.emoji]||'')+'</div><div style="font-size:12px;font-weight:600;">'+block.label+'</div><div style="font-size:10px;color:'+theme.muted+';">'+(isEmpty?'empty':wc+'w')+'</div>'
 
-  let idx = 0
-  for (const profile of sorted) {
-    if (idx === recentCount && recentCount > 0) {
-      const s = document.createElement('div')
-      s.style.cssText = 'height:1px;background:'+theme.separator+';margin:2px 8px;'
-      menuEl.appendChild(s)
-    }
-    if (profile.id === '_full') {
-      const s = document.createElement('div')
-      s.style.cssText = 'height:1px;background:'+theme.separator+';margin:2px 8px;'
-      menuEl.appendChild(s)
-    }
+    card.addEventListener('mouseenter', () => { if (selectedKey !== block.profile_key) card.style.background = theme.hover })
+    card.addEventListener('mouseleave', () => { if (selectedKey !== block.profile_key) card.style.background = theme.cardBg })
 
-    const count = counts[profile.id] ?? 0
-    const isEmpty = count === 0
-    const cHtml = isEmpty
-      ? '<span style="font-size:10px;color:'+theme.warn+';">0</span>'
-      : '<span style="font-size:10px;color:'+theme.muted+';">'+count+'</span>'
-
-    const row = document.createElement('div')
-    row.dataset.profileIdx = String(idx)
-    row.style.cssText = 'display:flex;align-items:center;gap:8px;padding:7px 10px;border-radius:8px;cursor:pointer;transition:background 0.12s;'+(isEmpty?'opacity:0.45;':'')
-    row.innerHTML = '<span style="font-size:14px;width:20px;text-align:center;">'+profile.emoji+'</span><span style="flex:1;font-size:12px;">'+profile.name+'</span>'+cHtml+'<span style="font-size:10px;color:'+theme.muted+'40;">'+String(idx+1)+'</span>'
-    row.title = profile.description || ''
-    row.addEventListener('mouseenter', () => { row.style.background = theme.hover })
-    row.addEventListener('mouseleave', () => { row.style.background = 'transparent' })
-
-    row.addEventListener('click', async () => {
-      closeMenu()
-      if (isEmpty) { showToast('No facts match this profile yet.', theme); return }
-
-      showToast(profile.emoji + ' Loading...', theme)
-      try {
-        const facts = await getFactsForProfile(profile.id)
-        if (!facts || facts.length === 0) { showToast('No facts for this profile yet.', theme); return }
-
-        const block = formatIdentityBlock(profile.name, facts)
-        const editor = findEditorFn()
-        if (!editor) { showToast('Editor not found.', theme); return }
-
-        const current = getEditorContent(editor)
-        setEditorContent(editor, block + current)
-
-        showSuccess(platform, profile.emoji, profile.name, facts.length)
-
-        const updatedRecent = [profile.id, ...recentIds.filter((id: string) => id !== profile.id)].slice(0, 5)
-        await chrome.storage.local.set({ recent_profile_ids: updatedRecent })
-      } catch (err) { log('Error:', err); showToast('Error loading profile.', theme) }
+    card.addEventListener('click', () => {
+      if (isEmpty) { showToast('This block is empty. Add content on your dashboard.', theme); return }
+      // Deselect all
+      const allCards = grid.querySelectorAll('[data-block-key]') as NodeListOf<HTMLElement>
+      allCards.forEach(c => { c.style.border = '2px solid transparent'; c.style.background = theme.cardBg })
+      // Select this one
+      selectedKey = block.profile_key
+      card.style.border = '2px solid ' + theme.selected
+      card.style.background = theme.hover
+      // Show preview
+      const preview = block.content.substring(0, 80).replace(/\n/g, ' ')
+      previewEl.textContent = '"' + preview + (block.content.length > 80 ? '...' : '') + '"'
+      previewEl.style.display = 'block'
+      // Enable inject button
+      const btn = document.getElementById('northr-inject-btn') as HTMLElement
+      if (btn) { btn.style.opacity = '1'; btn.style.pointerEvents = 'auto' }
     })
 
-    menuEl.appendChild(row); idx++
-  }
+    grid.appendChild(card)
+  })
+  menuEl.appendChild(grid)
+
+  // Preview area
+  menuEl.appendChild(previewEl)
+
+  // Inject button
+  const injectBtn = document.createElement('div')
+  injectBtn.id = 'northr-inject-btn'
+  injectBtn.style.cssText = 'display:flex;align-items:center;justify-content:center;gap:6px;padding:10px;border-radius:10px;background:'+theme.text+';color:'+theme.bg+';font-size:13px;font-weight:600;cursor:pointer;transition:all 0.15s;opacity:0.3;pointer-events:none;'
+  injectBtn.textContent = 'Inject \u2192'
+  injectBtn.addEventListener('mouseenter', () => { if (selectedKey) injectBtn.style.opacity = '0.85' })
+  injectBtn.addEventListener('mouseleave', () => { if (selectedKey) injectBtn.style.opacity = '1' })
+
+  injectBtn.addEventListener('click', async () => {
+    if (!selectedKey) return
+    const blocks = await getBlocks()
+    const block = blocks.find(b => b.profile_key === selectedKey)
+    if (!block || !block.content) { showToast('Block is empty.', theme); return }
+
+    const editor = findEditorFn()
+    if (!editor) { showToast('Editor not found.', theme); return }
+
+    const text = formatBlock(block)
+    const current = getEditorContent(editor)
+    setEditorContent(editor, text + current)
+
+    closeMenu()
+    showToast(block.label + ' identity injected \u2014 ' + wordCount(block.content) + ' words', theme)
+
+    // Pulse dot green
+    if (dotEl) {
+      dotEl.style.border = '2px solid #10b981'; dotEl.style.opacity = '1'
+      dotEl.innerHTML = '<svg width="12" height="12" viewBox="0 0 12 12" fill="none"><text x="1" y="10" font-size="11" font-weight="700" font-family="system-ui" fill="#10b981">\u2713</text></svg>'
+      setTimeout(() => resetDot(platform), 4000)
+    }
+  })
+
+  menuEl.appendChild(injectBtn)
+
+  // Footer link
+  const footer = document.createElement('div')
+  footer.style.cssText = 'text-align:center;font-size:10px;color:'+theme.muted+'50;padding-top:2px;'
+  footer.innerHTML = '<a href="https://identity.northr.ai" target="_blank" style="color:'+theme.muted+';text-decoration:none;">identity.northr.ai</a>'
+  menuEl.appendChild(footer)
 }
 
 export function watchForNavigation() { /* handled inside createNorthrProfileMenu */ }

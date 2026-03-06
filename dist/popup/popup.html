@@ -17,58 +17,49 @@
       <input type="password" id="password" placeholder="Password">
       <button class="btn" id="login-btn">Sign In</button>
       <div class="error" id="login-error"></div>
-      <a href="https://identity.northr.ai/signup" target="_blank" class="link">Don't have an account? Sign up</a>
+      <a href="https://identity.northr.ai/signup" target="_blank" class="link">Don\'t have an account? Sign up</a>
     </div>
   </div>
 
-  <!-- Logged In State -->
+  <!-- Main View -->
   <div id="main-view" style="display:none;">
-    <div class="status-card">
-      <div class="score" id="accuracy-score">0%</div>
-      <div class="score-label">Identity Accuracy</div>
-      <div class="status-row" style="margin-top: 12px;">
-        <span class="status-label">Facts confirmed</span>
-        <span class="status-value" id="facts-count">0/0</span>
+
+    <div id="blocks-grid" class="blocks-grid"></div>
+
+    <div id="edit-area" style="display:none;">
+      <div class="edit-header">
+        <span id="edit-title"></span>
+        <span class="edit-close" id="edit-close">&times;</span>
       </div>
-      <div class="sync-info" id="sync-info">Last synced: never</div>
+      <textarea id="edit-textarea" class="edit-textarea" placeholder="Write about yourself..."></textarea>
+      <button class="btn" id="edit-save" style="width:100%;margin-top:6px;">Save</button>
     </div>
 
-    <div class="status-card">
-      <div class="status-row">
-        <span class="status-label">Profile injection</span>
-        <span class="status-value status-active" id="injection-status">Active</span>
-      </div>
-    </div>
+    <div class="sync-info" id="sync-info">Last synced: never</div>
 
     <div class="mode-badge" id="mode-badge">
-      <span class="mode-icon">🔒</span>
+      <span class="mode-icon">&#128274;</span>
       <div>
         <div class="mode-label">Local mode</div>
         <div class="mode-desc">Your data stays on this device</div>
       </div>
     </div>
 
-    <div class="coming-soon">
-      <span class="coming-soon-icon">🔒</span>
-      <div>
-        <div class="coming-soon-label">Capture new facts</div>
-        <div class="coming-soon-desc">Coming soon (Pro)</div>
-      </div>
+    <div style="display:flex;gap:8px;margin-top:8px;">
+      <button class="btn btn-secondary" id="refresh-btn" style="flex:1;">&#8635; Refresh</button>
+      <button class="btn btn-secondary" id="dashboard-btn" style="flex:1;">Dashboard &#8599;</button>
     </div>
 
-    <div style="display: flex; gap: 8px; margin-top: 12px;">
-      <button class="btn btn-secondary" id="refresh-btn" style="flex:1;">↻ Refresh</button>
-      <button class="btn btn-secondary" id="dashboard-btn" style="flex:1;">Dashboard ↗</button>
-    </div>
-
-    <button class="btn btn-secondary" id="logout-btn" style="width:100%; margin-top:8px;">Sign Out</button>
+    <button class="btn btn-secondary" id="logout-btn" style="width:100%;margin-top:8px;">Sign Out</button>
   </div>
 
   <!-- Loading State -->
   <div id="loading-view">
-    <div class="status-card" style="text-align: center; padding: 24px;">
-      <div class="score-label">Loading...</div>
-    </div>
+    <div style="text-align:center;padding:24px;color:#64748b;">Loading...</div>
+  </div>
+
+  <div class="footer-link">
+    <a href="https://identity.northr.ai" target="_blank">identity.northr.ai</a>
   </div>
 
   <script src="popup.js"></script>
