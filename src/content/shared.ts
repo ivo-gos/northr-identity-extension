@@ -952,7 +952,9 @@ async function loadMenu(platform: Platform, findEditorFn: () => HTMLElement | nu
   sr.addEventListener('mouseenter', () => { sr.style.background = 'rgba(255,255,255,0.08)' })
   sr.addEventListener('mouseleave', () => { sr.style.background = 'rgba(255,255,255,0.04)' })
   sr.addEventListener('click', async () => {
-    if (countUserMessages() < 2) { showToast('Send at least 2 messages first.', theme); return }
+    const msgCount = countUserMessages()
+    if (msgCount === 0) { showToast('Have a conversation first, then save it here.', theme); return }
+    if (msgCount < 2) { showToast('Chat a bit more \u2014 need 2+ messages in this conversation.', theme); return }
     const pro = await isProUser()
     if (pro) {
       closeMenu(); openSaveFlow(platform)
@@ -969,7 +971,9 @@ async function loadMenu(platform: Platform, findEditorFn: () => HTMLElement | nu
   ir.addEventListener('mouseenter', () => { ir.style.background = 'rgba(255,255,255,0.08)' })
   ir.addEventListener('mouseleave', () => { ir.style.background = 'rgba(255,255,255,0.04)' })
   ir.addEventListener('click', () => {
-    if (countUserMessages() < 2) { showToast('Send at least 2 messages first.', theme); return }
+    const msgCount = countUserMessages()
+    if (msgCount === 0) { showToast('Have a conversation first \u2014 I\'ll learn about you from it.', theme); return }
+    if (msgCount < 2) { showToast('Chat a bit more \u2014 need 2+ messages to find identity signals.', theme); return }
     closeMenu(); openIdentityExtractionFlow(platform)
   })
   menuEl.appendChild(ir)
