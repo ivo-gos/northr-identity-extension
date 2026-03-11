@@ -1,8 +1,8 @@
 {
   "manifest_version": 3,
-  "name": "Northr Identity — AI Identity",
-  "description": "Your portable AI identity. Every AI tool knows who you are.",
-  "version": "1.3.0",
+  "name": "Northr - Stop Repeating Yourself to ChatGPT, Claude & Gemini",
+  "description": "Build your AI identity once. Press Cmd+I and every AI knows you instantly.",
+  "version": "1.4.0",
   "permissions": [
     "storage",
     "alarms"
