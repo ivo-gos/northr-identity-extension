@@ -88,14 +88,16 @@ async function syncBlocks(token: string): Promise<IdentityBlock[]> {
 
 // ═══════════════════ PRO SUBSCRIPTION CHECK ═══════════════════
 
-async function checkSubscription(): Promise<{ isPro: boolean; plan: string; status: string }> {
+async function checkSubscription(forceRefresh = false): Promise<{ isPro: boolean; plan: string; status: string }> {
   try {
-    // Check cache first (6-hour TTL)
-    const cached = await chrome.storage.local.get(['subscriptionStatus', 'subscriptionCheckedAt'])
-    if (cached.subscriptionStatus && cached.subscriptionCheckedAt && (Date.now() - cached.subscriptionCheckedAt < 6 * 60 * 60 * 1000)) {
-      const s = cached.subscriptionStatus
-      const pro = s.status === 'active' || s.status === 'trialing'
-      return { isPro: pro, plan: pro ? 'pro' : 'free', status: s.status || 'free' }
+    // Check cache first (1-hour TTL, skip if force refresh)
+    if (!forceRefresh) {
+      const cached = await chrome.storage.local.get(['subscriptionStatus', 'subscriptionCheckedAt'])
+      if (cached.subscriptionStatus && cached.subscriptionCheckedAt && (Date.now() - cached.subscriptionCheckedAt < 1 * 60 * 60 * 1000)) {
+        const s = cached.subscriptionStatus
+        const pro = s.status === 'active' || s.status === 'trialing'
+        return { isPro: pro, plan: pro ? 'pro' : 'free', status: s.status || 'free' }
+      }
     }
 
     // Fetch fresh
@@ -351,7 +353,10 @@ async function showMainView(user: any) {
   document.getElementById('main-view')!.style.display = 'block'
 
   // Check subscription status
-  const sub = await checkSubscription()
+  // If cached as free but checked more than 5 min ago, force refresh to catch recent Pro activation
+  const { subscriptionStatus: cachedSub, subscriptionCheckedAt: checkedAt } = await chrome.storage.local.get(['subscriptionStatus', 'subscriptionCheckedAt'])
+  const shouldForce = cachedSub && cachedSub.status === 'free' && checkedAt && (Date.now() - checkedAt > 5 * 60 * 1000)
+  const sub = await checkSubscription(shouldForce || false)
   isPro = sub.isPro
 
   // Hide Projects tab entirely for free users
@@ -398,11 +403,24 @@ async function showMainView(user: any) {
       const { data: { session } } = await supabase.auth.getSession()
       if (session?.access_token) { const b = await syncBlocks(session.access_token); if (b.length > 0) currentBlocks = b }
     } catch {}
+
+    // Force-refresh subscription status (catches new Pro activations)
+    const freshSub = await checkSubscription(true)
+    isPro = freshSub.isPro
+    const tabProjects = document.getElementById('tab-projects')!
+    tabProjects.style.display = isPro ? '' : 'none'
+
     if (isPro) await loadProjectsData()
     btn.textContent = '\u21BB Refresh'; btn.disabled = false
     renderGrid()
     if (isPro && activeTab === 'projects') renderProjectsTree()
-    document.getElementById('sync-info')!.textContent = 'Last synced: just now'
+
+    // Update sync info with Pro badge if applicable
+    const syncInfo = document.getElementById('sync-info')!
+    syncInfo.textContent = 'Last synced: just now'
+    if (isPro) {
+      syncInfo.innerHTML = '<span style="color:#eab308;font-size:10px;">Pro \u2728</span> \u00B7 ' + syncInfo.textContent
+    }
   })
 
   document.getElementById('dashboard-btn')!.addEventListener('click', () => { chrome.tabs.create({ url: APP_URL + '/dashboard' }) })
